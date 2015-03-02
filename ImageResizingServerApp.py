@@ -73,6 +73,7 @@ class ResizerHandler(tornado.web.RequestHandler):
     format = None
     crop = False
     fit = False
+    fitfill = False
     quality = 90
     newHeight = 0
     newWidth = 0
@@ -82,16 +83,24 @@ class ResizerHandler(tornado.web.RequestHandler):
     originalWidth = 0
     originalHeight = 0
 
-    def get(self, signature, cluster, crop_or_fit, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl):
+    def get(self, signature, cluster, process, fill_color, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl):
         imgUrl = imgUrl.encode('utf8')
         LOG.debug("imgUrl before: %s" % imgUrl)
         imgUrl = urllib.quote(imgUrl)
         LOG.debug("imgUrl after: %s" % imgUrl)
         imgUrl = removeAccents(imgUrl)
+        LOG.debug("fill_color = %s" % fill_color)
+        if fill_color == "white":
+            self.fill_color = (255,255,255,255)
+        elif fill_color == "black":
+            self.fill_color = (0,0,0,255)
+        else:
+            self.fill_color = tuple(map(int,fill_color.split("-")) if fill_color else (255,255,255,0))
+        LOG.debug("self.fill_color = %s" % list(self.fill_color))
         self.checkParams(
-            signature, cluster, crop_or_fit, quality, width, height, offsetX, offsetY, imgUrl)
+            signature, cluster, process, quality, width, height, offsetX, offsetY, imgUrl)
         self.loadImageFromCluster()
-        LOG.debug("signature=%s, cluster=%s, crop_or_fit=%s, quality=%s, width=%s, height=%s, offsetXfake=%s, offsetX=%s,offsetYfake=%s, offsetY=%s, imgUrl=%s" % (signature, cluster, crop_or_fit, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl))
+        LOG.debug("signature=%s, cluster=%s, process=%s, quality=%s, width=%s, height=%s, offsetXfake=%s, offsetX=%s,offsetYfake=%s, offsetY=%s, imgUrl=%s" % (signature, cluster, process, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl))
 
         if self.crop:
             cropRatio = float(self.newHeight) / self.newWidth
@@ -124,6 +133,27 @@ class ResizerHandler(tornado.web.RequestHandler):
             else:
                 self.newWidth = int(self.newHeight / ratio) or 1
             self.resizeImage()
+        elif self.fitfill:
+            requested_height = self.newHeight
+            requested_width = self.newWidth
+            fitRatio = float(self.newHeight) / self.newWidth
+            ratio = float(self.originalHeight) / self.originalWidth
+            if fitRatio > ratio:
+                self.newHeight = int(self.newWidth * ratio) or 1
+            else:
+                self.newWidth = int(self.newHeight / ratio) or 1
+            self.resizeImage()
+
+            new_img = Image.new(mode='RGBA',size=(requested_width, requested_height), color=self.fill_color) #create the image object to be the final product
+            offset_x = max((requested_width - self.pilImage.size[0]) / 2, 0)
+            offset_y = max((requested_height - self.pilImage.size[1]) / 2, 0)
+            offset_tuple = (offset_x, offset_y) #pack x and y into a tuple
+            new_img.paste(self.pilImage, offset_tuple) #paste the thumbnail into the full sized image
+            self.pilImage = new_img#.save(filename,'PNG') #save (the PNG format will retain the alpha band unlike JPEG)
+            if self.fill_color[-1] < 255:
+                ## if transparency >> returns as PNG
+                self.format = "PNG"
+
         else:
             if self.newWidth + self.newHeight == 0:
                 pass
@@ -156,7 +186,7 @@ class ResizerHandler(tornado.web.RequestHandler):
         cache_control = options.cacheControls.get(cluster, options.defaultCacheControl)
         self.set_header('Cache-Control', cache_control)
 
-    def checkParams(self, signature, cluster, crop_or_fit, quality, width, height, offsetX, offsetY, imgUrl):
+    def checkParams(self, signature, cluster, process, quality, width, height, offsetX, offsetY, imgUrl):
         self.imgUrl = '/' + imgUrl
         self.newHeight = int(height)
         self.newWidth = int(width)
@@ -195,20 +225,22 @@ class ResizerHandler(tornado.web.RequestHandler):
         if self.quality <= 0 or self.quality > 100:
             raise tornado.web.HTTPError(400, 'Bad argument Quality : 0>q<100')
 
-        if crop_or_fit is not None:
-            if crop_or_fit.startswith("crop"):
+        if process is not None:
+            if process=="fitfill":
+                self.fitfill = True
+            elif process=="crop":
                 self.crop = True
                 if self.newWidth == 0 or self.newHeight == 0:
                     raise tornado.web.HTTPError(
                         400, 'Crop error, you have to sprecify both Width ({0}) and Height ({1})'.format(self.newWidth, self.newHeight))
-            elif crop_or_fit.startswith("fit"):
+            elif process=="fit":
                 self.fit = True
                 if self.newWidth == 0 or self.newHeight == 0:
                     raise tornado.web.HTTPError(
                         400, 'Fit error, you have to sprecify both Width ({0}) and Height ({1})'.format(self.newWidth, self.newHeight))
             else:
                 raise tornado.web.HTTPError(
-                        400, 'Error, {0} method not supported, use fit or crop'.format(crop_or_fit))
+                        400, 'Error, {0} process not supported, use fit/crop/fitfill'.format(process))
 
         return True
 
@@ -343,10 +375,11 @@ class ResizerHandler(tornado.web.RequestHandler):
 tornadoapp = tornado.wsgi.WSGIApplication([
     (r"/test",
      PingTestHandler),
-    (r"/([0-9a-zA-Z]{4}/)?([0-9a-zA-Z]+)/(crop/|fit/)?(\d+/)?(\d+)x(\d+)/(oX(\-?\d+)/)?(oY(\-?\d+)/)?(.+)",
+    (r"/([0-9a-zA-Z]{4}/)?([0-9a-zA-Z]+)/(crop|fit|fitfill)?/?(\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3}|white|black)?/?(\d+/)?(\d+)x(\d+)/(oX(\-?\d+)/)?(oY(\-?\d+)/)?(.+)",
      ResizerHandler),
     
 ])
+
 
 
 def application(environ, start_response):
