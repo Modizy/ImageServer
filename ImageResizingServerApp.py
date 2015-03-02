@@ -40,6 +40,10 @@ define("defaultCacheControl", default="max-age=60*60", help="default cache contr
 
 options.parse_config_file('./conf/mpvip_server.conf') ## todo auto determine which conf to load ? 
 
+WHITE = (255, 255, 255, 255)
+BLACK = (0, 0, 0, 255)
+TRANSPARENT = (0, 0, 0, 0)
+
 LOG = logging.getLogger(__name__)
 LOG.setLevel(logging.DEBUG)
 
@@ -83,20 +87,25 @@ class ResizerHandler(tornado.web.RequestHandler):
     originalWidth = 0
     originalHeight = 0
 
+
+    def _has_transparency(self):
+        if len(self.pilImage.split())>3:
+            return True
+        else:
+            return False
+        # alpha_layer = self.pilImage.split()[3]
+        # LOG.debug("alpha_layer.getdata()=%s" % alpha_layer.getdata())
+        # alpha_sum = sum(alpha_layer.getdata())
+        # LOG.debug("alpha_sum=%s" % alpha_sum)
+        # return alpha_sum > 0
+
     def get(self, signature, cluster, process, fill_color, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl):
         imgUrl = imgUrl.encode('utf8')
         LOG.debug("imgUrl before: %s" % imgUrl)
         imgUrl = urllib.quote(imgUrl)
         LOG.debug("imgUrl after: %s" % imgUrl)
         imgUrl = removeAccents(imgUrl)
-        LOG.debug("fill_color = %s" % fill_color)
-        if fill_color == "white":
-            self.fill_color = (255,255,255,255)
-        elif fill_color == "black":
-            self.fill_color = (0,0,0,255)
-        else:
-            self.fill_color = tuple(map(int,fill_color.split("-")) if fill_color else (255,255,255,0))
-        LOG.debug("self.fill_color = %s" % list(self.fill_color))
+        self.fill_color = fill_color
         self.checkParams(
             signature, cluster, process, quality, width, height, offsetX, offsetY, imgUrl)
         self.loadImageFromCluster()
@@ -144,15 +153,37 @@ class ResizerHandler(tornado.web.RequestHandler):
                 self.newWidth = int(self.newHeight / ratio) or 1
             self.resizeImage()
 
+            if fill_color == "white":
+                self.fill_color = WHITE
+            elif fill_color == "black":
+                self.fill_color = BLACK
+            elif fill_color == "transparent":
+                self.fill_color = TRANSPARENT
+            elif fill_color:
+                ## R-G-B-A values
+                self.fill_color = tuple(map(int,fill_color.split("-")))
+            ## default values
+            elif self.format == "PNG" and self._has_transparency(): 
+                ## default for PNG with transparency is TRANSPARENT
+                self.fill_color = TRANSPARENT
+            else:
+                ## else default is WHITE
+                self.fill_color = WHITE
+
+            if self.fill_color[-1] < 255:
+                ## if transparency >> returns as PNG
+                self.format = "PNG"
+            else:
+                ## else JPG
+                self.format = "JPEG"
+
             new_img = Image.new(mode='RGBA',size=(requested_width, requested_height), color=self.fill_color) #create the image object to be the final product
             offset_x = max((requested_width - self.pilImage.size[0]) / 2, 0)
             offset_y = max((requested_height - self.pilImage.size[1]) / 2, 0)
             offset_tuple = (offset_x, offset_y) #pack x and y into a tuple
-            new_img.paste(self.pilImage, offset_tuple) #paste the thumbnail into the full sized image
-            self.pilImage = new_img#.save(filename,'PNG') #save (the PNG format will retain the alpha band unlike JPEG)
-            if self.fill_color[-1] < 255:
-                ## if transparency >> returns as PNG
-                self.format = "PNG"
+            mask = self.pilImage.split()[3] if len(self.pilImage.split())>3 else None ## mask is Alpha layer if exists
+            new_img.paste(self.pilImage, offset_tuple, mask=mask)
+            self.pilImage = new_img
 
         else:
             if self.newWidth + self.newHeight == 0:
@@ -375,7 +406,9 @@ class ResizerHandler(tornado.web.RequestHandler):
 tornadoapp = tornado.wsgi.WSGIApplication([
     (r"/test",
      PingTestHandler),
-    (r"/([0-9a-zA-Z]{4}/)?([0-9a-zA-Z]+)/(crop|fit|fitfill)?/?(\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3}|white|black)?/?(\d+/)?(\d+)x(\d+)/(oX(\-?\d+)/)?(oY(\-?\d+)/)?(.+)",
+    (r"/([0-9a-zA-Z]{4}/)?([0-9a-zA-Z]+)/(crop|fit|fitfill)?/?" ## signature, cluster, process
+    + r"(\d{1,3}-\d{1,3}-\d{1,3}-\d{1,3}|white|black|transparent)?/?" ## color
+    + r"(\d+/)?(\d+)x(\d+)/(oX(\-?\d+)/)?(oY(\-?\d+)/)?(.+)",         ## quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl
      ResizerHandler),
     
 ])
