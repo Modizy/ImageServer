@@ -25,9 +25,9 @@ define(
     "signatureSecret", default="", help="add signature to request", type=str)
 define("defaultQuality", default=90, help="default output quality", type=int)
 define("minHeight", default=1, help="minimum height after resize", type=int)
-define("maxHeight", default=2048, help="maximum height after resize", type=int)
+define("maxHeight", default=3072, help="maximum height after resize", type=int)
 define("minWidth", default=1, help="minimum width after resize", type=int)
-define("maxWidth", default=2048, help="maximum width after resize", type=int)
+define("maxWidth", default=3072, help="maximum width after resize", type=int)
 define("timeoutGetCluster", default=2,
        help="timeout for get image on cluster", type=int)
 
