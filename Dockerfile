@@ -6,7 +6,8 @@ RUN apt-get update
 RUN apt-get install -y --force-yes build-essential git python python-dev python-setuptools supervisor libxslt-dev libxml2-dev libjpeg-dev libpng-dev make swig bash
 RUN add-apt-repository -y ppa:nginx/stable; apt-get install -y nginx
 
-RUN echo "daemon off;" >> /etc/nginx/nginx.conf
+
+RUN easy_install pip
 
 # add the code
 ADD . /home/docker/code/
