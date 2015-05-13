@@ -18,6 +18,8 @@ WORKDIR /home/docker/code/
 RUN cp /home/docker/code/nginx_conf/nginx.conf /etc/nginx/nginx.conf;
 RUN ln -s /home/docker/code/nginx_conf/ImageResizingServerApp.active /etc/nginx/sites-enabled/;
 
+RUN chmod +x /home/docker/code/docker_conf/*.sh;
+
 # install requirements
 RUN pip install -r /home/docker/code/requirements.txt
 
