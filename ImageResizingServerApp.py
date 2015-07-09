@@ -111,6 +111,7 @@ class ResizerHandler(tornado.web.RequestHandler):
         self.loadImageFromCluster()
         LOG.debug("signature=%s, cluster=%s, process=%s, quality=%s, width=%s, height=%s, offsetXfake=%s, offsetX=%s,offsetYfake=%s, offsetY=%s, imgUrl=%s" % (signature, cluster, process, quality, width, height, offsetXfake, offsetX, offsetYfake, offsetY, imgUrl))
 
+
         if self.crop:
             cropRatio = float(self.newHeight) / self.newWidth
             ratio = float(self.originalHeight) / self.originalWidth
@@ -176,6 +177,8 @@ class ResizerHandler(tornado.web.RequestHandler):
             else:
                 ## else JPG
                 self.format = "JPEG"
+
+            self.convertCYMKtoRGB()
 
             new_img = Image.new(mode='RGBA',size=(requested_width, requested_height), color=self.fill_color) #create the image object to be the final product
             offset_x = max((requested_width - self.pilImage.size[0]) / 2, 0)
@@ -366,6 +369,18 @@ class ResizerHandler(tornado.web.RequestHandler):
         self.format = self.pilImage.format
 
         return True
+
+    def convertCYMKtoRGB(self):
+        try:
+            if self.pilImage.mode == "CMYK":
+                self.pilImage = self.pilImage.convert('RGB')
+                LOG.debug("image converted from CYMK to RGB")
+                return True
+        except:
+            msg = 'Convert CYMK to RGB Error {0}'.format(sys.exc_info()[1])
+            LOG.error(msg)
+            # dont raise for this
+            # raise tornado.web.HTTPError(500, msg)
 
     def resizeImage(self):
         try:
