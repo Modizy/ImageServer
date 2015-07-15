@@ -1,7 +1,7 @@
 # ImageServer
 
 
-On the Fly Image Processing Server. Not meant for production.
+On the Fly Image Processing Server.
 
 ### Source
 
