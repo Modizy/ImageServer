@@ -1,0 +1,19 @@
+{
+    "AWSEBDockerrunVersion": "1",
+    "Image": {
+	"Name": "10.0.0.11:5000/imageserver:<DOCKER_NAME>",
+	"Update": "true"
+    },
+    "Ports": [
+	{
+	"ContainerPort": "8000"
+      }
+    ],
+    "Volumes": [
+	{
+	    "HostDirectory": "/var/app/mydb",
+	    "ContainerDirectory": "/etc/mysql"
+	}
+    ],
+    "Logging": "/var/log/nginx"
+}
