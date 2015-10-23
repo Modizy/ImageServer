@@ -1,4 +1,4 @@
-.PHONY: aws clean jenkins
+.PHONY: aws jenkins env.properties Dockerrun.aws.json
 
 DOCKER_TAG := $(shell git rev-parse --short HEAD)
 RELEASE_NAME := $(shell date +%Y%m%dT%H%M%S)
