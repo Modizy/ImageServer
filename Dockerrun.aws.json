@@ -1,7 +1,7 @@
 {
     "AWSEBDockerrunVersion": "1",
     "Image": {
-	"Name": "10.0.0.11:5000/imageserver:<DOCKER_NAME>",
+	"Name": "669404827470.dkr.ecr.eu-west-1.amazonaws.com/imageserver:<DOCKER_NAME>",
 	"Update": "true"
     },
     "Ports": [
